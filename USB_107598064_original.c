@@ -35,24 +35,35 @@ MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
 
-struct usb_mouse {
-	char name[128];
-	char phys[64];
-	struct usb_device *usbdev;
-	struct input_dev *dev;
-	struct urb *irq;
+//滑鼠結構
 
+struct usb_mouse {
+
+	//滑鼠名稱
+	char name[128];
+	//節點名稱
+	char phys[64];
+
+	//usb裝置指標
+	struct usb_device *usbdev;
+	//輸入設備指標
+	struct input_dev *dev;
+
+	//urb請求指標
+	struct urb *irq;
+	//一般傳輸指標
 	signed char *data;
+	//dma傳輸位址
 	dma_addr_t data_dma;
 };
-
+//irb callback函數
 static void usb_mouse_irq(struct urb *urb)
 {
 	struct usb_mouse *mouse = urb->context;
 	signed char *data = mouse->data;
 	struct input_dev *dev = mouse->dev;
 	int status;
-
+	// status 值為０表示urb成功
 	switch (urb->status) {
 	case 0:			/* success */
 		break;
@@ -61,21 +72,24 @@ static void usb_mouse_irq(struct urb *urb)
 	case -ESHUTDOWN:
 		return;
 	/* -EPIPE:  should clear the halt */
+	//除了以上三種錯誤外，將重新呼叫urb
 	default:		/* error */
 		goto resubmit;
 	}
-
+	//向子系統回報滑鼠事件
+	// bit 0,1,2,3,4 分別代表左,右,中,SIDE,EXTRA鍵按下
 	input_report_key(dev, BTN_LEFT,   data[0] & 0x01);
-	if (data[0] & 0x01) printk(KERN_INFO "left button clicked!");
 	input_report_key(dev, BTN_RIGHT,  data[0] & 0x02);
 	input_report_key(dev, BTN_MIDDLE, data[0] & 0x04);
 	input_report_key(dev, BTN_SIDE,   data[0] & 0x08);
 	input_report_key(dev, BTN_EXTRA,  data[0] & 0x10);
-
+	//data[1]滑鼠水平位移
 	input_report_rel(dev, REL_X,     data[1]);
+	//data[２]滑鼠垂直位移
 	input_report_rel(dev, REL_Y,     data[2]);
+	//data[２]滑鼠wheel位移
 	input_report_rel(dev, REL_WHEEL, data[3]);
-
+	//事件同步
 	input_sync(dev);
 resubmit:
 	status = usb_submit_urb (urb, GFP_ATOMIC);
@@ -85,6 +99,8 @@ resubmit:
 			mouse->usbdev->bus->bus_name,
 			mouse->usbdev->devpath, status);
 }
+
+//開啟滑鼠設備時,呼叫probe中建構的urb,進入urb生命周期
 
 static int usb_mouse_open(struct input_dev *dev)
 {
@@ -97,6 +113,8 @@ static int usb_mouse_open(struct input_dev *dev)
 	return 0;
 }
 
+//關閉滑鼠設備時,結束urb生命周期
+
 static void usb_mouse_close(struct input_dev *dev)
 {
 	struct usb_mouse *mouse = input_get_drvdata(dev);
@@ -104,8 +122,12 @@ static void usb_mouse_close(struct input_dev *dev)
 	usb_kill_urb(mouse->irq);
 }
 
+//驅動程式的probe函數
+
 static int usb_mouse_probe(struct usb_interface *intf, const struct usb_device_id *id)
 {
+	//利用interface得到接口interface及endpoint
+
 	struct usb_device *dev = interface_to_usbdev(intf);
 	struct usb_host_interface *interface;
 	struct usb_endpoint_descriptor *endpoint;
@@ -116,12 +138,14 @@ static int usb_mouse_probe(struct usb_interface *intf, const struct usb_device_i
 
 	interface = intf->cur_altsetting;
 
+	//滑鼠有１個interrup IN　的　endpoint
 	if (interface->desc.bNumEndpoints != 1)
 		return -ENODEV;
 
 	endpoint = &interface->endpoint[0].desc;
 	if (!usb_endpoint_is_int_in(endpoint))
 		return -ENODEV;
+	//
 
 	pipe = usb_rcvintpipe(dev, endpoint->bEndpointAddress);
 	maxp = usb_maxpacket(dev, pipe, usb_pipeout(pipe));
