@@ -66,7 +66,11 @@ static void usb_mouse_irq(struct urb *urb)
 	}
 
 	input_report_key(dev, BTN_LEFT,   data[0] & 0x01);
+	
+	/* show the message on dmseg if user click left button */
+	
 	if (data[0] & 0x01) printk(KERN_INFO "left button clicked!");
+	
 	input_report_key(dev, BTN_RIGHT,  data[0] & 0x02);
 	input_report_key(dev, BTN_MIDDLE, data[0] & 0x04);
 	input_report_key(dev, BTN_SIDE,   data[0] & 0x08);
